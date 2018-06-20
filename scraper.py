@@ -10,7 +10,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 
-#### FUNCTIONS 1.0
+#### FUNCTIONS 1.2
+import requests
 
 def validateFilename(filename):
     filenameregex = '^[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[0-9][0-9][0-9][0-9]_[0-9QY][0-9]$'
@@ -85,8 +86,8 @@ def convert_mth_strings ( mth_string ):
 
 #### VARIABLES 1.0
 
-entity_id = "E2632_BDC_gov"
-url = "https://www.broadland.gov.uk/info/200197/spending_and_transparency/339/council_spending_over_250"
+entity_id = "E2432_CBC_gov"
+url = "https://www.charnwood.gov.uk/pages/publishing_local_authority_spend"
 errors = 0
 data = []
 
@@ -98,28 +99,90 @@ soup = BeautifulSoup(html, 'lxml')
 
 #### SCRAPE DATA
 
-links = soup.find('div', 'editor').find_all('a', href=True)
-for link in links:
-    if 'http' not in link['href']:
-        year_url = 'https://www.broadland.gov.uk' + link['href']
-    else:
-        year_url = link['href']
-    year_html = urllib2.urlopen(year_url)
-    year_soup = BeautifulSoup(year_html, 'lxml')
-    blocks = year_soup.find_all('span', 'download-listing__file-tag download-listing__file-tag--type')
-    for block in blocks:
-        if 'CSV' in block.text:
-            url = block.find_next('a')['href']
-            if 'http' not in url:
-                url = 'https://www.broadland.gov.uk' + url
+year_links = soup.find('div', 'pagecontent').find_all('a', href=True)
+for year_l in year_links:
+    year_link = year_l['href']
+    if '/pages/' in year_link:
+        if 'http' not in year_link:
+            year_link = 'https://www.charnwood.gov.uk' + year_link
+        else:
+            year_link = year_link
+        year_html = requests.get(year_link)
+        year_soup = BeautifulSoup(year_html.text, 'lxml')
+        file_links = year_soup.find('div', 'pagecontent').find_all('a', href=True)
+        for file_link in file_links:
+            file_url = file_link['href']
+            if 'http' not in file_url:
+                url = 'https://www.charnwood.gov.uk'+file_url
             else:
-                url = url
-            file_name = block.find_next('a')['aria-label']
-            csvMth = file_name.split()[-2][:3]
-            csvYr = file_name.split()[-1]
+                url = file_url
+            if '.csv' in url:
+                file_name = file_link.text.replace('V1', '').replace('CSV', '').replace('V2', '').replace('Csv', '').replace('.csv', '').replace('v1', '').replace('()', '').strip()
+                csvMth = ''
+                csvYr = file_name[-4:]
+                if 'October' in file_name and 'December' in file_name:
+                    csvMth = 'Q4'
+                elif 'July' in file_name and 'September' in file_name:
+                    csvMth = 'Q3'
+                elif 'April' in file_name and 'June' in file_name:
+                    csvMth = 'Q2'
+                elif 'January' in file_name and 'March' in file_name:
+                    csvMth = 'Q1'
+                elif 'January' in file_name and 'May' in file_name:
+                    csvMth = 'Q0'
+                elif 'June' in file_name and 'August' in file_name:
+                    csvMth = 'Q0'
+                elif 'September' in file_name and 'December' in file_name:
+                    csvMth = 'Q0'
+                elif 'April' in file_name and 'July' in file_name:
+                    csvMth = 'Q0'
+                elif 'August' in file_name and 'October' in file_name:
+                    csvMth = 'Q0'
+                elif 'Nov' in file_name and 'March' in file_name:
+                    csvMth = 'Q0'
+                elif 'Nov and Dec' in file_name:
+                    csvMth = 'Q0'
+                if not csvMth:
+                    csvMth = file_name.split('-')[-1].strip()[:3]
+                csvMth = convert_mth_strings(csvMth.upper())
+                data.append([csvYr, csvMth, url])
+    else:
+        if 'http' not in year_link:
+            url = 'https://www.charnwood.gov.uk' + year_link
+        else:
+            url = year_link
+        if '.csv' in url:
+            file_name = year_l.text.replace('V1', '').replace('CSV', '').replace('V2', '').replace('Csv',
+                                                                                                      '').replace(
+                '.csv', '').replace('v1', '').replace('()', '').strip()
+            csvMth = ''
+            csvYr = file_name[-4:]
+            if 'October' in file_name and 'December' in file_name:
+                csvMth = 'Q4'
+            elif 'July' in file_name and 'September' in file_name:
+                csvMth = 'Q3'
+            elif 'April' in file_name and 'June' in file_name:
+                csvMth = 'Q2'
+            elif 'January' in file_name and 'March' in file_name:
+                csvMth = 'Q1'
+            elif 'January' in file_name and 'May' in file_name:
+                csvMth = 'Q0'
+            elif 'June' in file_name and 'August' in file_name:
+                csvMth = 'Q0'
+            elif 'September' in file_name and 'December' in file_name:
+                csvMth = 'Q0'
+            elif 'April' in file_name and 'July' in file_name:
+                csvMth = 'Q0'
+            elif 'August' in file_name and 'October' in file_name:
+                csvMth = 'Q0'
+            elif 'Nov' in file_name and 'March' in file_name:
+                csvMth = 'Q0'
+            elif 'Nov and Dec' in file_name:
+                csvMth = 'Q0'
+            if not csvMth:
+                csvMth = file_name.split('-')[-1].strip()[:3]
             csvMth = convert_mth_strings(csvMth.upper())
             data.append([csvYr, csvMth, url])
-
 
 #### STORE DATA 1.0
 
